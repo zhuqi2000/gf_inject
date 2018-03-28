@@ -9,6 +9,7 @@ import wx
 import os
 import math
 import sys
+import datetime
 
 wildcard = u"文本文件(*.txt)|*.txt|"   \
            u"All Files(*.*)|*.*"
@@ -34,7 +35,7 @@ class MyInjectFrame(wx.Frame):
         # 主界面设计
         self.st1 = wx.StaticText(pnl, label = "输入遥控地址",pos=(25,25))
         self.textAddr = wx.TextCtrl(pnl,pos=(125,25),value="0002")
-        typeList = ['单精度浮点数','双精度浮点数','16位整数','32位整数']
+        typeList = ['单精度浮点数','双精度浮点数','16位整数','32位整数','J2000毫秒计数']
         self.st2 = wx.StaticText(pnl, label="选择数据类型",pos=(25,75))
         self.comboType =wx.ComboBox(pnl,-1,value = "单精度浮点数",choices = typeList,style = wx.CB_READONLY,pos=(125,75))
         self.comboType.SetSelection(0)
@@ -44,10 +45,10 @@ class MyInjectFrame(wx.Frame):
         self.textRatio = wx.TextCtrl(pnl,pos=(325,75),value="1.0")
         self.textRatio.Hide()
         self.st3 = wx.StaticText(pnl, label = "输入数值",pos=(25,125))
-        self.textValue = wx.TextCtrl(pnl,pos=(125,125))
+        self.textValue = wx.TextCtrl(pnl,pos=(125,125),size = (175,25),value="0.0")
         
         self.buttonAdd = wx.Button(pnl,label ="加入列表",pos=(325,125))
-        self.listInject =wx.ListBox(pnl,-1,style = wx.LB_SINGLE,size=(240,200),pos=(25,175))
+        self.listInject =wx.ListBox(pnl,-1,style = wx.LB_SINGLE,size=(280,200),pos=(25,175))
         self.listInject.SetFont(font)
         self.listInject.SetForegroundColour(wx.BLUE)
         
@@ -83,6 +84,12 @@ class MyInjectFrame(wx.Frame):
            self.stRatio.Hide()
            self.textRatio.Hide()
            
+        if currentIndex == 4:
+            currentTime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.textValue.SetValue(currentTime)
+        else:
+            self.textValue.SetValue(str("0.0"))
+            
     def OnClickSave(self, event):
         """click buttonSave"""
         dlg = wx.FileDialog(self,message = u"保存文件",
@@ -168,17 +175,29 @@ class MyInjectFrame(wx.Frame):
             wx.MessageBox("输入必须是16进制数")
             self.textAddr.SetValue("2")
             wStartAddr = 2
-        
-        """ 将字符串转为数值"""
+            
         strDigit = self.textValue.GetValue()
-        try:
-            digitnum = float(strDigit)
-        except ValueError:
-            wx.MessageBox("输入必须是数字（整数或浮点数）")
-            self.textValue.SetValue("0")
-            digitnum = 0.0
-
-        """ 系数判断"""
+        selIndex = self.comboType.GetSelection()
+        
+        if self.comboType.GetSelection() != 4:
+            #将字符串转为数值
+            try:
+               digitnum = float(strDigit)
+            except ValueError:
+               wx.MessageBox("输入必须是数字（整数或浮点数）")
+               self.textValue.SetValue("0")
+               digitnum = 0.0
+        else:
+            try:
+               t1 = datetime.datetime.strptime(strDigit, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+               wx.MessageBox("输入格式为YYYY-MM-DD H:M:S")
+               t1 = datetime.datetime.now()
+               self.textValue.SetValue(t1.strftime("%Y-%m-%d %H:%M:%S"))
+            t0 = datetime.datetime(2000,1,1,12,0,0)
+            digitnum = (t1 - t0).total_seconds() * 1000
+            
+        #系数判断
         strRadio = self.textRatio.GetValue()
         try:
             radio = float(strRadio)
@@ -240,7 +259,6 @@ class MyInjectFrame(wx.Frame):
                 flt_m = serial_b[:]
                 flt_e=0
 
-        selIndex = self.comboType.GetSelection()
         if selIndex == 0 : 
             #单精度浮点数处理
             #阶码加127
@@ -263,12 +281,15 @@ class MyInjectFrame(wx.Frame):
             str_m=""
             for i in range(23):
                  str_m = str_m + str(flt_m[i])
-            
             #把符号位、阶码、尾数连接起来
             str_binary =str_s + str_e + str_m
             
             #二进制字符串转整数
             dw_binary = int(str_binary,2)
+
+            #尾数转换少1问题的0舍1入补足，如果第23位尾数为1，则需要加1
+            if flt_m[23] == 1:
+                dw_binary = dw_binary + 1
 
             #将整数转16进制字符串
             strHex = '%08X' % dw_binary
@@ -382,6 +403,33 @@ class MyInjectFrame(wx.Frame):
             strAdd = '%04X' % wAdd
            
             strAdd = strAdd + strData[4:8]
+            #加入列表
+            self.listInject.Append(strAdd)
+            
+        elif selIndex == 4 :
+            #J2000毫秒计数处理
+            #wx.MessageBox(str(digitnum))
+            strData = '%016X' % int(digitnum)
+            wAdd = wStartAddr
+            #加入地址1、数据1
+            strAdd = '%04X' % wAdd
+            strAdd = strAdd + strData[4:8]
+            #加入列表
+            self.listInject.Append(strAdd)
+            
+            #加入地址2、数据2
+            wAdd = wAdd + 2
+            strAdd = '%04X' % wAdd
+           
+            strAdd = strAdd + strData[8:12]
+            #加入列表
+            self.listInject.Append(strAdd)
+            
+            #加入地址3、数据3
+            wAdd = wAdd + 2
+            strAdd = '%04X' % wAdd
+           
+            strAdd = strAdd + strData[12:]
             #加入列表
             self.listInject.Append(strAdd)
 
