@@ -109,7 +109,7 @@ class MyInjectFrame(wx.Frame):
                 xorsum = xorsum ^ 0xc000
                 
                 #包长域=列表（地址、数据）中所有字节长度加方式字2字节减1
-                pkg_len = nCount * 4 + 2 - 1
+                pkg_len = nCount * 4 + 4 - 1
                 #包长度限定最大256字节，而包长域是实际包长扣掉包头、长度，再减1，最大为249
                 if pkg_len > 249:
                    wx.MessageBox("注数包长度超限，建议分包")
